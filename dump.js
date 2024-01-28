@@ -14,38 +14,37 @@ async function dumpStorage() {
   }
   let count = 0;
   createDir("./supabase-dump", true);
-  await Promise.all(
-    buckets.data.map(async (bucket) => {
-      const rootLst = await storage.from(bucket.id).list();
-      if (rootLst.error) throw new Error(rootLst.error);
-      const dump = async (objects, path = "", depth = 0) => {
-        if (depth > 5) throw new Error("Depth exceed");
-        await Promise.all(
-          objects.map(async (d) => {
-            const file = await storage
+  for (const bucket of buckets.data) {
+    const rootLst = await storage.from(bucket.id).list();
+    if (rootLst.error) throw new Error(rootLst.error);
+    const dump = async (objects, path = "", depth = 0) => {
+      if (depth > 5) throw new Error("Depth exceed");
+      await Promise.all(
+        objects.map(async (d) => {
+          const file = await storage
+            .from(bucket.id)
+            .download(`${path}/${d.name}`);
+          if (file.error) {
+            const folder = await storage
               .from(bucket.id)
-              .download(`${path}/${d.name}`);
-            if (file.error) {
-              const folder = await storage
-                .from(bucket.id)
-                .list(`${path}${d.name}`);
-              if (folder.error) throw new Error(folder.error);
-              await dump(folder.data, `${path}${d.name}/`, depth + 1);
-            } else {
-              await createDir(`./supabase-dump/${bucket.id}/${path}`, false);
-              console.log(`saving ${bucket.id}/${path}${d.name}`);
-              writeFileSync(
-                `./supabase-dump/${bucket.id}/${path}${d.name}`,
-                Buffer.from(await file.data.arrayBuffer())
-              );
-              count += 1;
-            }
-          })
-        );
-      };
-      await dump(rootLst.data, "", 0);
-    })
-  );
+              .list(`${path}${d.name}`);
+            if (folder.error) throw new Error(folder.error);
+            await dump(folder.data, `${path}${d.name}/`, depth + 1);
+          } else {
+            await createDir(`./supabase-dump/${bucket.id}/${path}`, false);
+            console.log(`saving ${bucket.id}/${path}${d.name}`);
+            writeFileSync(
+              `./supabase-dump/${bucket.id}/${path}${d.name}`,
+              Buffer.from(await file.data.arrayBuffer())
+            );
+            count += 1;
+          }
+        })
+      );
+    };
+    await dump(rootLst.data, "", 0);
+  }
+
   console.log(`${count} Objects Downloaded.`);
 }
 
